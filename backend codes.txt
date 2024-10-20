@@ -1,0 +1,831 @@
+// DatabaseConfig.java
+package com.mamiyaso.okulsistemi.config;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.datasource.DriverManagerDataSource;
+
+import javax.sql.DataSource;
+
+@Configuration
+public class DatabaseConfig {
+
+    @Value("${spring.datasource.url}")
+    private String dataSourceUrl;
+
+    @Value("${spring.datasource.username}")
+    private String dataSourceUsername;
+
+    @Value("${spring.datasource.password}")
+    private String dataSourcePassword;
+
+    @Bean
+    public DataSource dataSource() {
+        DriverManagerDataSource dataSource = new DriverManagerDataSource();
+        dataSource.setUrl(dataSourceUrl);
+        dataSource.setUsername(dataSourceUsername);
+        dataSource.setPassword(dataSourcePassword);
+        return dataSource;
+    }
+}
+
+// OpenApiConfig.java
+package com.mamiyaso.okulsistemi.config;
+
+import io.swagger.v3.oas.models.OpenAPI;
+import io.swagger.v3.oas.models.info.Info;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class OpenApiConfig {
+
+    @Bean
+    public OpenAPI customOpenAPI() {
+        return new OpenAPI()
+                .info(new Info()
+                        .title("Okul Sistemi API")
+                        .version("1.0")
+                        .description("Okul Yönetim Sistemi için API dokümantasyonu"));
+    }
+}
+
+// SecurityConfig.java
+package com.mamiyaso.okulsistemi.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.security.web.SecurityFilterChain;
+
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+        http
+                .csrf(csrf -> csrf.disable())
+                .authorizeHttpRequests(auth -> auth
+                        .requestMatchers("/api/**", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html", "/webjars/**").permitAll()
+                        .anyRequest().authenticated()
+                )
+                .httpBasic(Customizer.withDefaults());
+        return http.build();
+    }
+}
+
+// WebConfig.java
+package com.mamiyaso.okulsistemi.config;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/api/**")
+                .allowedOrigins("http://localhost:3000")  // Frontend URL'ini buraya ekleyin
+                .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                .allowedHeaders("*")
+                .allowCredentials(true);
+    }
+}
+
+// CourseController.java
+package com.mamiyaso.okulsistemi.controller;
+
+import com.mamiyaso.okulsistemi.model.Course;
+import com.mamiyaso.okulsistemi.service.CourseService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/courses")
+public class CourseController {
+
+    private final CourseService courseService;
+
+    @Autowired
+    public CourseController(CourseService courseService) {
+        this.courseService = courseService;
+    }
+
+    @GetMapping
+    public List<Course> getAllCourses() {
+        return courseService.getAllCourses();
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Course> getCourseById(@PathVariable Long id) {
+        return courseService.getCourseById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping
+    public ResponseEntity<Course> createCourse(@RequestBody Course course) {
+        Course savedCourse = courseService.saveCourse(course);
+        return ResponseEntity.status(HttpStatus.CREATED).body(savedCourse);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Course> updateCourse(@PathVariable Long id, @RequestBody Course course) {
+        return courseService.getCourseById(id)
+                .map(existingCourse -> {
+                    course.setId(id);
+                    return ResponseEntity.ok(courseService.saveCourse(course));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteCourse(@PathVariable Long id) {
+        if (courseService.getCourseById(id).isPresent()) {
+            courseService.deleteCourse(id);
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/byTeacher/{teacherId}")
+    public List<Course> getCoursesByTeacherId(@PathVariable Long teacherId) {
+        return courseService.getCoursesByTeacherId(teacherId);
+    }
+}
+
+// GradeController.java
+package com.mamiyaso.okulsistemi.controller;
+
+import com.mamiyaso.okulsistemi.model.Grade;
+import com.mamiyaso.okulsistemi.service.GradeService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/grades")
+public class GradeController {
+
+    private final GradeService gradeService;
+
+    @Autowired
+    public GradeController(GradeService gradeService) {
+        this.gradeService = gradeService;
+    }
+
+    @GetMapping
+    public List<Grade> getAllGrades() {
+        return gradeService.getAllGrades();
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Grade> getGradeById(@PathVariable Long id) {
+        return gradeService.getGradeById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping
+    public ResponseEntity<Grade> createGrade(@RequestBody Grade grade) {
+        Grade savedGrade = gradeService.saveGrade(grade);
+        return ResponseEntity.status(HttpStatus.CREATED).body(savedGrade);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Grade> updateGrade(@PathVariable Long id, @RequestBody Grade grade) {
+        return gradeService.getGradeById(id)
+                .map(existingGrade -> {
+                    grade.setId(id);
+                    return ResponseEntity.ok(gradeService.saveGrade(grade));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteGrade(@PathVariable Long id) {
+        if (gradeService.getGradeById(id).isPresent()) {
+            gradeService.deleteGrade(id);
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/byStudent/{studentId}")
+    public List<Grade> getGradesByStudentId(@PathVariable Long studentId) {
+        return gradeService.getGradesByStudentId(studentId);
+    }
+
+    @GetMapping("/byCourse/{courseId}")
+    public List<Grade> getGradesByCourseId(@PathVariable Long courseId) {
+        return gradeService.getGradesByCourseId(courseId);
+    }
+}
+
+// StudentController.java
+package com.mamiyaso.okulsistemi.controller;
+
+import com.mamiyaso.okulsistemi.model.Student;
+import com.mamiyaso.okulsistemi.service.StudentService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/students")
+public class StudentController {
+
+    private final StudentService studentService;
+
+    @Autowired
+    public StudentController(StudentService studentService) {
+        this.studentService = studentService;
+    }
+
+    @GetMapping
+    public List<Student> getAllStudents() {
+        return studentService.getAllStudents();
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Student> getStudentById(@PathVariable Long id) {
+        return studentService.getStudentById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping
+    public ResponseEntity<Student> createStudent(@RequestBody Student student) {
+        Student savedStudent = studentService.saveStudent(student);
+        return ResponseEntity.status(HttpStatus.CREATED).body(savedStudent);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Student> updateStudent(@PathVariable Long id, @RequestBody Student student) {
+        return studentService.getStudentById(id)
+                .map(existingStudent -> {
+                    student.setId(id);
+                    return ResponseEntity.ok(studentService.saveStudent(student));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteStudent(@PathVariable Long id) {
+        if (studentService.getStudentById(id).isPresent()) {
+            studentService.deleteStudent(id);
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/byLastName/{lastName}")
+    public List<Student> getStudentsByLastName(@PathVariable String lastName) {
+        return studentService.getStudentsByLastName(lastName);
+    }
+}
+
+// TeacherController.java
+package com.mamiyaso.okulsistemi.controller;
+
+import com.mamiyaso.okulsistemi.model.Teacher;
+import com.mamiyaso.okulsistemi.service.TeacherService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/teachers")
+public class TeacherController {
+
+    private final TeacherService teacherService;
+
+    @Autowired
+    public TeacherController(TeacherService teacherService) {
+        this.teacherService = teacherService;
+    }
+
+    @GetMapping
+    public List<Teacher> getAllTeachers() {
+        return teacherService.getAllTeachers();
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Teacher> getTeacherById(@PathVariable Long id) {
+        return teacherService.getTeacherById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping
+    public ResponseEntity<Teacher> createTeacher(@RequestBody Teacher teacher) {
+        Teacher savedTeacher = teacherService.saveTeacher(teacher);
+        return ResponseEntity.status(HttpStatus.CREATED).body(savedTeacher);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Teacher> updateTeacher(@PathVariable Long id, @RequestBody Teacher teacher) {
+        return teacherService.getTeacherById(id)
+                .map(existingTeacher -> {
+                    teacher.setId(id);
+                    return ResponseEntity.ok(teacherService.saveTeacher(teacher));
+                })
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteTeacher(@PathVariable Long id) {
+        if (teacherService.getTeacherById(id).isPresent()) {
+            teacherService.deleteTeacher(id);
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.notFound().build();
+    }
+}
+
+// Course.java
+package com.mamiyaso.okulsistemi.model;
+
+import lombok.Data;
+import jakarta.persistence.*;
+
+@Data
+@Entity
+@Table(name = "courses")
+public class Course {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+
+    private String description;
+
+    @ManyToOne
+    @JoinColumn(name = "teacher_id", nullable = false)
+    private Teacher teacher;
+}
+
+// Grade.java
+package com.mamiyaso.okulsistemi.model;
+
+import lombok.Data;
+import jakarta.persistence.*;
+import java.time.LocalDate;
+
+@Data
+@Entity
+@Table(name = "grades")
+public class Grade {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne
+    @JoinColumn(name = "student_id", nullable = false)
+    private Student student;
+
+    @ManyToOne
+    @JoinColumn(name = "course_id", nullable = false)
+    private Course course;
+
+    @Column(nullable = false)
+    private Double grade;
+
+    @Column(nullable = false)
+    private LocalDate date;
+}
+
+// Student.java
+package com.mamiyaso.okulsistemi.model;
+
+import lombok.Data;
+
+import jakarta.persistence.*;
+import java.time.LocalDate;
+
+@Data
+@Entity
+@Table(name = "students")
+public class Student {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String firstName;
+
+    @Column(nullable = false)
+    private String lastName;
+
+    @Column(unique = true, nullable = false)
+    private String email;
+
+    @Column(nullable = false)
+    private LocalDate dateOfBirth;
+}
+
+// Teacher.java
+package com.mamiyaso.okulsistemi.model;
+
+import lombok.Data;
+
+import jakarta.persistence.*;
+
+@Data
+@Entity
+@Table(name = "teachers")
+public class Teacher {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String firstName;
+
+    @Column(nullable = false)
+    private String lastName;
+
+    @Column(unique = true, nullable = false)
+    private String email;
+
+    private String specialization;
+}
+
+// CourseRepository.java
+package com.mamiyaso.okulsistemi.repository;
+
+import com.mamiyaso.okulsistemi.model.Course;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface CourseRepository extends JpaRepository<Course, Long> {
+    List<Course> findByTeacherId(Long teacherId);
+}
+
+// GradeRepository.java
+package com.mamiyaso.okulsistemi.repository;
+
+import com.mamiyaso.okulsistemi.model.Grade;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface GradeRepository extends JpaRepository<Grade, Long> {
+    List<Grade> findByStudentId(Long studentId);
+    List<Grade> findByCourseId(Long courseId);
+}
+
+// StudentRepository.java
+package com.mamiyaso.okulsistemi.repository;
+
+import com.mamiyaso.okulsistemi.model.Student;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface StudentRepository extends JpaRepository<Student, Long> {
+    List<Student> findByLastName(String lastName);
+    Student findByEmail(String email);
+}
+
+// TeacherRepository.java
+package com.mamiyaso.okulsistemi.repository;
+
+import com.mamiyaso.okulsistemi.model.Teacher;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public interface TeacherRepository extends JpaRepository<Teacher, Long> {
+    Teacher findByEmail(String email);
+}
+
+// CourseService.java
+package com.mamiyaso.okulsistemi.service;
+
+import com.mamiyaso.okulsistemi.model.Course;
+import com.mamiyaso.okulsistemi.repository.CourseRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class CourseService {
+
+    private final CourseRepository courseRepository;
+
+    @Autowired
+    public CourseService(CourseRepository courseRepository) {
+        this.courseRepository = courseRepository;
+    }
+
+    public List<Course> getAllCourses() {
+        return courseRepository.findAll();
+    }
+
+    public Optional<Course> getCourseById(Long id) {
+        return courseRepository.findById(id);
+    }
+
+    public Course saveCourse(Course course) {
+        return courseRepository.save(course);
+    }
+
+    public void deleteCourse(Long id) {
+        courseRepository.deleteById(id);
+    }
+
+    public List<Course> getCoursesByTeacherId(Long teacherId) {
+        return courseRepository.findByTeacherId(teacherId);
+    }
+}
+
+// GradeService.java
+package com.mamiyaso.okulsistemi.service;
+
+import com.mamiyaso.okulsistemi.model.Grade;
+import com.mamiyaso.okulsistemi.repository.GradeRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class GradeService {
+
+    private final GradeRepository gradeRepository;
+
+    @Autowired
+    public GradeService(GradeRepository gradeRepository) {
+        this.gradeRepository = gradeRepository;
+    }
+
+    public List<Grade> getAllGrades() {
+        return gradeRepository.findAll();
+    }
+
+    public Optional<Grade> getGradeById(Long id) {
+        return gradeRepository.findById(id);
+    }
+
+    public Grade saveGrade(Grade grade) {
+        return gradeRepository.save(grade);
+    }
+
+    public void deleteGrade(Long id) {
+        gradeRepository.deleteById(id);
+    }
+
+    public List<Grade> getGradesByStudentId(Long studentId) {
+        return gradeRepository.findByStudentId(studentId);
+    }
+
+    public List<Grade> getGradesByCourseId(Long courseId) {
+        return gradeRepository.findByCourseId(courseId);
+    }
+}
+
+// StudentService.java
+package com.mamiyaso.okulsistemi.service;
+
+import com.mamiyaso.okulsistemi.model.Student;
+import com.mamiyaso.okulsistemi.repository.StudentRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class StudentService {
+
+    private final StudentRepository studentRepository;
+
+    @Autowired
+    public StudentService(StudentRepository studentRepository) {
+        this.studentRepository = studentRepository;
+    }
+
+    public List<Student> getAllStudents() {
+        return studentRepository.findAll();
+    }
+
+    public Optional<Student> getStudentById(Long id) {
+        return studentRepository.findById(id);
+    }
+
+    public Student saveStudent(Student student) {
+        return studentRepository.save(student);
+    }
+
+    public void deleteStudent(Long id) {
+        studentRepository.deleteById(id);
+    }
+
+    public List<Student> getStudentsByLastName(String lastName) {
+        return studentRepository.findByLastName(lastName);
+    }
+
+    public Student getStudentByEmail(String email) {
+        return studentRepository.findByEmail(email);
+    }
+}
+
+// TeacherService.java
+package com.mamiyaso.okulsistemi.service;
+
+import com.mamiyaso.okulsistemi.model.Teacher;
+import com.mamiyaso.okulsistemi.repository.TeacherRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class TeacherService {
+
+    private final TeacherRepository teacherRepository;
+
+    @Autowired
+    public TeacherService(TeacherRepository teacherRepository) {
+        this.teacherRepository = teacherRepository;
+    }
+
+    public List<Teacher> getAllTeachers() {
+        return teacherRepository.findAll();
+    }
+
+    public Optional<Teacher> getTeacherById(Long id) {
+        return teacherRepository.findById(id);
+    }
+
+    public Teacher saveTeacher(Teacher teacher) {
+        return teacherRepository.save(teacher);
+    }
+
+    public void deleteTeacher(Long id) {
+        teacherRepository.deleteById(id);
+    }
+
+    public Teacher getTeacherByEmail(String email) {
+        return teacherRepository.findByEmail(email);
+    }
+}
+
+package com.mamiyaso.okulsistemi;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class OkulSistemiApplication {
+
+	public static void main(String[] args) {
+		SpringApplication.run(OkulSistemiApplication.class, args);
+	}
+}
+
+# application.properties
+# Veritaban? Ayarlar?
+spring.datasource.url=jdbc:mysql://localhost:3306/okulsistemi?useSSL=false&serverTimezone=UTC
+spring.datasource.username=root
+spring.datasource.password=123456
+spring.datasource.driver-class-name=com.mysql.cj.jdbc.Driver
+spring.jpa.database-platform=org.hibernate.dialect.MySQLDialect
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+
+# Server Port
+server.port=8080
+
+# Logging
+logging.level.org.springframework=INFO
+logging.level.com.mamiyaso.okulsistemi=DEBUG
+
+# OpenAPI
+springdoc.api-docs.path=/v3/api-docs
+springdoc.swagger-ui.path=/swagger-ui.html
+springdoc.swagger-ui.configUrl=/v3/api-docs/swagger-config
+springdoc.swagger-ui.url=/v3/api-docs
+
+<!-- pom.xml -->
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<parent>
+		<groupId>org.springframework.boot</groupId>
+		<artifactId>spring-boot-starter-parent</artifactId>
+		<version>3.1.5</version>
+		<relativePath/> <!-- lookup parent from repository -->
+	</parent>
+	<groupId>com.mamiyaso</groupId>
+	<artifactId>okulsistemi</artifactId>
+	<version>0.0.1-SNAPSHOT</version>
+	<name>okulsistemi</name>
+	<description>Öğrenci Yönetim Sistemi</description>
+	<properties>
+		<java.version>17</java.version>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+	</properties>
+	<dependencies>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-data-jpa</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-security</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-validation</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-web</artifactId>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-devtools</artifactId>
+			<scope>runtime</scope>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>com.mysql</groupId>
+			<artifactId>mysql-connector-j</artifactId>
+			<scope>runtime</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<optional>true</optional>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.boot</groupId>
+			<artifactId>spring-boot-starter-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.springframework.security</groupId>
+			<artifactId>spring-security-test</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<!-- SpringDoc OpenAPI UI -->
+		<dependency>
+			<groupId>org.springdoc</groupId>
+			<artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+			<version>2.1.0</version>
+		</dependency>
+	</dependencies>
+
+	<build>
+		<plugins>
+			<plugin>
+				<groupId>org.springframework.boot</groupId>
+				<artifactId>spring-boot-maven-plugin</artifactId>
+				<configuration>
+					<excludes>
+						<exclude>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+						</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
+		</plugins>
+	</build>
+</project>
